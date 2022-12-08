@@ -14,8 +14,12 @@
 --
 pattern_time = require 'pattern_time'
 musicutil = require 'musicutil'
-mxsamples=include("mx.samples/lib/mx.samples")
-engine.name="MxSamples"
+ControlSpec = require "controlspec"
+Formatters = require "formatters"
+MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
+engine.name = "MollyThePoly"
+--mxsamples=include("mx.samples/lib/mx.samples")
+--engine.name="MxSamples"
 
 --
 -- DEVICES
@@ -72,6 +76,20 @@ specs.RING_MOD_FADE = ControlSpec.new(-15, 15, "lin", 0, 0, "s")
 specs.RING_MOD_MIX = ControlSpec.UNIPOLAR
 specs.CHORUS_MIX = ControlSpec.new(0, 1, "lin", 0, 0.8, "")
 
+local function format_ratio_to_one(param)
+  return util.round(param:get(), 0.01) .. ":1"
+end
+
+local function format_fade(param)
+  local secs = param:get()
+  local suffix = " in"
+  if secs < 0 then
+    secs = secs - specs.LFO_FADE.minval
+    suffix = " out"
+  end
+  secs = util.round(secs, 0.01)
+  return math.abs(secs) .. " s" .. suffix
+end
 
 
 --
@@ -164,8 +182,62 @@ function init_mxsamples()
     params:add{type="control",id=i.."mx_attack",name="attack",controlspec=controlspec.new(0,10,'lin',0,0,'s')}
     params:add{type="control",id=i.."mx_release",name="release",controlspec=controlspec.new(0,10,'lin',0,2,'s')}
   end
-  
 end
+
+function init_molly()
+  params:add_group("SKETCH - VOICES",312)
+  for i=1,8 do
+    params:add_separator("Voice "..i)
+    params:add{type="option",id=i.."osc_wave_shape",name="Osc Wave Shape",options=options.OSC_WAVE_SHAPE,default=3}
+    params:add{type="control",id=i.."pulse_width_mod",name="Pulse Width Mod",controlspec=specs.PW_MOD}
+    params:add{type="option",id=i.."pulse_width_mod_src",name="Pulse Width Mod Src",options=options.PW_MOD_SRC}
+    params:add{type="control",id=i.."freq_mod_lfo",name="Frequency Mod (LFO)",controlspec=specs.FREQ_MOD_LFO}
+    params:add{type="control",id=i.."freq_mod_env",name="Frequency Mod (Env-1)",controlspec=specs.FREQ_MOD_ENV}
+    params:add{type="control",id=i.."glide",name="Glide",controlspec=specs.GLIDE,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."main_osc_level",name="Main Osc Level",controlspec=specs.MAIN_OSC_LEVEL}
+    params:add{type="control",id=i.."sub_osc_level",name="Sub Osc Level",controlspec=specs.SUB_OSC_LEVEL}
+    params:add{type="control",id=i.."sub_osc_detune",name="Sub Osc Detune",controlspec=specs.SUB_OSC_DETUNE}
+    params:add{type="control",id=i.."noise_level",name="Noise Level",controlspec=specs.NOISE_LEVEL,action=engine.noiseLevel}
+    params:add{type="control",id=i.."hp_filter_cutoff",name="HP Filter Cutoff",controlspec=specs.HP_FILTER_CUTOFF,formatter=Formatters.format_freq}
+    params:add{type="control",id=i.."lp_filter_cutoff",name="LP Filter Cutoff",controlspec=specs.LP_FILTER_CUTOFF,formatter=Formatters.format_freq}
+    params:add{type="control",id=i.."lp_filter_resonance",name="LP Filter Resonance",controlspec=specs.LP_FILTER_RESONANCE}
+    params:add{type="option",id=i.."lp_filter_type",name="LP Filter Type",options=options.LP_FILTER_TYPE,default=2}
+    params:add{type="option",id=i.."lp_filter_env",name="LP Filter Env",options=options.LP_FILTER_ENV}
+    params:add{type="control",id=i.."lp_filter_mod_env",name="LP Filter Mod (Env)",controlspec=specs.LP_FILTER_CUTOFF_MOD_ENV}
+    params:add{type="control",id=i.."lp_filter_mod_lfo",name="LP Filter Mod (LFO)",controlspec=specs.LP_FILTER_CUTOFF_MOD_LFO}
+    params:add{type="control",id=i.."lp_filter_tracking",name="LP Filter Tracking",controlspec=specs.LP_FILTER_TRACKING,formatter=format_ratio_to_one}
+    params:add{type="control",id=i.."lfo_freq",name="LFO Frequency",controlspec=specs.LFO_FREQ,formatter=Formatters.format_freq}
+    params:add{type="option",id=i.."lfo_wave_shape",name="LFO Wave Shape",options=options.LFO_WAVE_SHAPE}
+    params:add{type="control",id=i.."lfo_fade",name="LFO Fade",controlspec=specs.LFO_FADE,formatter=format_fade,action=function(v)
+      if v<0 then v=specs.LFO_FADE.minval-0.00001+math.abs(v) end
+        engine.lfoFade(v)
+      end}
+    params:add{type="control",id=i.."env_1_attack",name="Env-1 Attack",controlspec=specs.ENV_ATTACK,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."env_1_decay",name="Env-1 Decay",controlspec=specs.ENV_DECAY,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."env_1_sustain",name="Env-1 Sustain",controlspec=specs.ENV_SUSTAIN}
+    params:add{type="control",id=i.."env_1_release",name="Env-1 Release",controlspec=specs.ENV_RELEASE,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."env_2_attack",name="Env-2 Attack",controlspec=specs.ENV_ATTACK,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."env_2_decay",name="Env-2 Decay",controlspec=specs.ENV_DECAY,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."env_2_sustain",name="Env-2 Sustain",controlspec=specs.ENV_SUSTAIN}
+    params:add{type="control",id=i.."env_2_release",name="Env-2 Release",controlspec=specs.ENV_RELEASE,formatter=Formatters.format_secs}
+    params:add{type="control",id=i.."amp",name="Amp",controlspec=specs.AMP}
+    params:add{type="control",id=i.."amp_mod",name="Amp Mod (LFO)",controlspec=specs.AMP_MOD}
+    params:add{type="control",id=i.."ring_mod_freq",name="Ring Mod Frequency",controlspec=specs.RING_MOD_FREQ,formatter=Formatters.format_freq}
+    params:add{type="control",id=i.."ring_mod_fade",name="Ring Mod Fade",controlspec=specs.RING_MOD_FADE,formatter=format_fade,action=function(v)
+      if v<0 then v=specs.RING_MOD_FADE.minval-0.00001+math.abs(v) end
+        engine.ringModFade(v)
+      end}
+    params:add{type="control",id=i.."ring_mod_mix",name="Ring Mod Mix",controlspec=specs.RING_MOD_MIX}
+    params:add{type="control",id=i.."chorus_mix",name="Chorus Mix",controlspec=specs.CHORUS_MIX}
+    
+    --params:bang()
+    
+    params:add{type = "trigger", id=i.."create_lead", name = "Create Lead", action = function() randomize_params(i,"lead") end}
+    params:add{type = "trigger", id=i.."create_pad", name = "Create Pad", action = function() randomize_params(i,"pad") end}
+    params:add{type = "trigger", id=i.."create_percussion", name = "Create Percussion", action = function() randomize_params(i,"percussion") end}
+  end
+end
+
 
 
 function init_pattern_recorders()
@@ -179,7 +251,8 @@ end
 
 function init()
   init_parameters()
-  init_mxsamples()
+  --init_mxsamples()
+  init_molly()
   init_pattern_recorders()
   init_pset_callbacks()
   clock.run(grid_redraw_clock)
@@ -275,12 +348,42 @@ end
 --
 function note_on(voice,note_num)
   if params:get("output") == 1 then
-    mx:on(
-      {name=params:string(voice.."mx_instrument"),
-      midi=note_num,
-      velocity=params:get(voice.."mx_velocity"),
-      amp=params:get(voice.."mx_amp"),
-      pan=params:get(voice.."mx_pan")})
+    engine.oscWaveShape(params:get(voice.."osc_wave_shape"))
+    engine.pwMod(params:get(voice.."pulse_width_mod"))
+    engine.pwModSource(params:get(voice.."pulse_width_mod_src"))
+    engine.freqModEnv(params:get(voice.."freq_mod_env"))
+    engine.freqModLfo(params:get(voice.."freq_mod_lfo"))
+    engine.glide(params:get(voice.."glide"))
+    engine.mainOscLevel(params:get(voice.."main_osc_level"))
+    engine.subOscLevel(params:get(voice.."sub_osc_level"))
+    engine.subOscDetune(params:get(voice.."sub_osc_detune"))
+    engine.noiseLevel(params:get(voice.."noise_level"))
+    engine.hpFilterCutoff(params:get(voice.."hp_filter_cutoff"))
+    engine.lpFilterCutoff(params:get(voice.."lp_filter_cutoff"))
+    engine.lpFilterResonance(params:get(voice.."lp_filter_resonance"))
+    engine.lpFilterType(params:get(voice.."lp_filter_type"))
+    engine.lpFilterCutoffEnvSelect(params:get(voice.."lp_filter_env"))
+    engine.lpFilterCutoffModEnv(params:get(voice.."lp_filter_mod_env"))
+    engine.lpFilterCutoffModLfo(params:get(voice.."lp_filter_mod_lfo"))
+    engine.lpFilterTracking(params:get(voice.."lp_filter_tracking"))
+    engine.lfoFreq(params:get(voice.."lfo_freq"))
+    engine.lfoFade(params:get(voice.."lfo_fade"))
+    engine.lfoWaveShape(params:get(voice.."lfo_wave_shape"))
+    engine.env1Attack(params:get(voice.."env_1_attack"))
+    engine.env1Decay(params:get(voice.."env_1_decay"))
+    engine.env1Sustain(params:get(voice.."env_1_sustain"))
+    engine.env1Release(params:get(voice.."env_1_release"))
+    engine.env2Attack(params:get(voice.."env_2_attack"))
+    engine.env2Decay(params:get(voice.."env_2_decay"))
+    engine.env2Sustain(params:get(voice.."env_2_sustain"))
+    engine.env2Release(params:get(voice.."env_2_release"))
+    engine.amp(params:get(voice.."amp"))
+    engine.ampMod(params:get(voice.."amp_mod"))
+    engine.ringModFreq(params:get(voice.."ring_mod_freq"))
+    engine.ringModFade(params:get(voice.."ring_mod_fade"))
+    engine.ringModMix(params:get(voice.."ring_mod_mix"))
+    engine.chorusMix(params:get(voice.."chorus_mix"))
+    engine.noteOn(note_num,musicutil.note_num_to_freq(note_num),80) --hardcoding velocity
   elseif params:get("output") == 2 then
     m:note_on(note_num, vel)
   elseif params:get("output") == 3 then
@@ -296,7 +399,7 @@ end
 
 function note_off(voice,note_num)
   if params:get("output") == 1 then
-    mx:off({name=params:string(voice.."mx_instrument"),midi=note_num})
+    engine.noteOff(note_num)
   elseif params:get("output") == 2 then
     m:note_off(note_num)
   elseif params:get("output") == 3 then
@@ -536,4 +639,199 @@ function grid_redraw()
     end
   end
   g:refresh()
+end
+
+
+function randomize_params(voice,sound_type)
+  
+  params:set(voice.."osc_wave_shape", math.random(#options.OSC_WAVE_SHAPE))
+  params:set(voice.."pulse_width_mod", math.random())
+  params:set(voice.."pulse_width_mod_src", math.random(#options.PW_MOD_SRC))
+  
+  params:set(voice.."lp_filter_type", math.random(#options.LP_FILTER_TYPE))
+  params:set(voice.."lp_filter_env", math.random(#options.LP_FILTER_ENV))
+  params:set(voice.."lp_filter_tracking", util.linlin(0, 1, specs.LP_FILTER_TRACKING.minval, specs.LP_FILTER_TRACKING.maxval, math.random()))
+  
+  params:set(voice.."lfo_freq", util.linlin(0, 1, specs.LFO_FREQ.minval, specs.LFO_FREQ.maxval, math.random()))
+  params:set(voice.."lfo_wave_shape", math.random(#options.LFO_WAVE_SHAPE))
+  params:set(voice.."lfo_fade", util.linlin(0, 1, specs.LFO_FADE.minval, specs.LFO_FADE.maxval, math.random()))
+  
+  params:set(voice.."env_1_decay", util.linlin(0, 1, specs.ENV_DECAY.minval, specs.ENV_DECAY.maxval, math.random()))
+  params:set(voice.."env_1_sustain", math.random())
+  params:set(voice.."env_1_release", util.linlin(0, 1, specs.ENV_RELEASE.minval, specs.ENV_RELEASE.maxval, math.random()))
+  
+  params:set(voice.."ring_mod_freq", util.linlin(0, 1, specs.RING_MOD_FREQ.minval, specs.RING_MOD_FREQ.maxval, math.random()))
+  params:set(voice.."chorus_mix", math.random())
+  
+  
+  if sound_type == "lead" then
+    
+    params:set(voice.."freq_mod_lfo", util.linexp(0, 1, 0.0000001, 0.1, math.pow(math.random(), 2)))
+    if math.random() > 0.95 then
+      params:set(voice.."freq_mod_env", util.linlin(0, 1, -0.06, 0.06, math.random()))
+    else
+      params:set(voice.."freq_mod_env", 0)
+    end
+    
+    params:set(voice.."glide", util.linexp(0, 1, 0.0000001, 1, math.pow(math.random(), 2)))
+    
+    if math.random() > 0.8 then
+      params:set(voice.."main_osc_level", 1)
+      params:set(voice.."sub_osc_level", 0)
+    else
+      params:set(voice.."main_osc_level", math.random())
+      params:set(voice.."sub_osc_level", math.random())
+    end
+    if math.random() > 0.9 then
+      params:set(voice.."sub_osc_detune", util.linlin(0, 1, specs.SUB_OSC_DETUNE.minval, specs.SUB_OSC_DETUNE.maxval, math.random()))
+    else
+      local detune = {0, 0, 0, 4, 5, -4, -5}
+      params:set(voice.."sub_osc_detune", detune[math.random(1, #detune)] + math.random() * 0.01)
+    end
+    params:set(voice.."noise_level", util.linexp(0, 1, 0.0000001, 1, math.random()))
+    
+    if math.abs(params:get(voice.."sub_osc_detune")) > 0.7 and params:get(voice.."sub_osc_level") > params:get(voice.."main_osc_level")  and params:get(voice.."sub_osc_level") > params:get(voice.."noise_level") then
+      params:set(voice.."main_osc_level", params:get(voice.."sub_osc_level") + 0.2)
+    end
+    
+    params:set(voice.."lp_filter_cutoff", util.linexp(0, 1, 100, specs.LP_FILTER_CUTOFF.maxval, math.pow(math.random(), 2)))
+    params:set(voice.."lp_filter_resonance", math.random() * 0.9)
+    params:set(voice.."lp_filter_mod_env", util.linlin(0, 1, math.random(-1, 0), 1, math.random()))
+    params:set(voice.."lp_filter_mod_lfo", math.random() * 0.2)
+    
+    params:set(voice.."env_2_attack", util.linexp(0, 1, specs.ENV_ATTACK.minval, 0.5, math.random()))
+    params:set(voice.."env_2_decay", util.linlin(0, 1, specs.ENV_DECAY.minval, specs.ENV_DECAY.maxval, math.random()))
+    params:set(voice.."env_2_sustain", math.random())
+    params:set(voice.."env_2_release", util.linlin(0, 1, specs.ENV_RELEASE.minval, 3, math.random()))
+    
+    if(math.random() > 0.8) then
+      params:set(voice.."env_1_attack", params:get(voice.."env_2_attack"))
+    else
+      params:set(voice.."env_1_attack", util.linlin(0, 1, specs.ENV_ATTACK.minval, 1, math.random()))
+    end
+    
+    if params:get(voice.."env_2_decay") < 0.2 and params:get(voice.."env_2_sustain") < 0.15 then
+      params:set(voice.."env_2_decay", util.linlin(0, 1, 0.2, specs.ENV_DECAY.maxval, math.random()))
+    end
+    
+    local amp_max = 0.9
+    if math.random() > 0.8 then amp_max = 11 end
+    params:set(voice.."amp", util.linlin(0, 1, 0.75, amp_max, math.random()))
+    params:set(voice.."amp_mod", util.linlin(0, 1, 0, 0.5, math.random()))
+    
+    params:set(voice.."ring_mod_fade", util.linlin(0, 1, specs.RING_MOD_FADE.minval * 0.8, specs.RING_MOD_FADE.maxval * 0.3, math.random()))
+    if(math.random() > 0.8) then
+      params:set(voice.."ring_mod_mix", math.pow(math.random(), 2))
+    else
+      params:set(voice.."ring_mod_mix", 0)
+    end
+    
+    
+  elseif sound_type == "pad" then
+    
+    params:set(voice.."freq_mod_lfo", util.linexp(0, 1, 0.0000001, 0.2, math.pow(math.random(), 4)))
+    if math.random() > 0.8 then
+      params:set(voice.."freq_mod_env", util.linlin(0, 1, -0.1, 0.2, math.pow(math.random(), 4)))
+    else
+      params:set(voice.."freq_mod_env", 0)
+    end
+    
+    params:set(voice.."glide", util.linexp(0, 1, 0.0000001, specs.GLIDE.maxval, math.pow(math.random(), 2)))
+    
+    params:set(voice.."main_osc_level", math.random())
+    params:set(voice.."sub_osc_level", math.random())
+    if math.random() > 0.7 then
+      params:set(voice.."sub_osc_detune", util.linlin(0, 1, specs.SUB_OSC_DETUNE.minval, specs.SUB_OSC_DETUNE.maxval, math.random()))
+    else
+      params:set(voice.."sub_osc_detune", math.random(specs.SUB_OSC_DETUNE.minval, specs.SUB_OSC_DETUNE.maxval) + math.random() * 0.01)
+    end
+    params:set(voice.."noise_level", util.linexp(0, 1, 0.0000001, 1, math.random()))
+    
+    if math.abs(params:get(voice.."sub_osc_detune")) > 0.7 and params:get(voice.."sub_osc_level") > params:get(voice.."main_osc_level")  and params:get(voice.."sub_osc_level") > params:get(voice.."noise_level") then
+      params:set(voice.."main_osc_level", params:get(voice.."sub_osc_level") + 0.2)
+    end
+    
+    params:set(voice.."lp_filter_cutoff", util.linexp(0, 1, 100, specs.LP_FILTER_CUTOFF.maxval, math.random()))
+    params:set(voice.."lp_filter_resonance", math.random())
+    params:set(voice.."lp_filter_mod_env", util.linlin(0, 1, -1, 1, math.random()))
+    params:set(voice.."lp_filter_mod_lfo", math.random())
+    
+    params:set(voice.."env_1_attack", util.linlin(0, 1, specs.ENV_ATTACK.minval, specs.ENV_ATTACK.maxval, math.random()))
+    
+    params:set(voice.."env_2_attack", util.linlin(0, 1, specs.ENV_ATTACK.minval, specs.ENV_ATTACK.maxval, math.random()))
+    params:set(voice.."env_2_decay", util.linlin(0, 1, specs.ENV_DECAY.minval, specs.ENV_DECAY.maxval, math.random()))
+    params:set(voice.."env_2_sustain", 0.1 + math.random() * 0.9)
+    params:set(voice.."env_2_release", util.linlin(0, 1, 0.5, specs.ENV_RELEASE.maxval, math.random()))
+    
+    params:set(voice.."amp", util.linlin(0, 1, 0.5, 0.8, math.random()))
+    params:set(voice.."amp_mod", math.random())
+    
+    params:set(voice.."ring_mod_fade", util.linlin(0, 1, specs.RING_MOD_FADE.minval, specs.RING_MOD_FADE.maxval, math.random()))
+    if(math.random() > 0.8) then
+      params:set(voice.."ring_mod_mix", math.random())
+    else
+      params:set(voice.."ring_mod_mix", 0)
+    end
+    
+    
+  else -- Perc
+    
+    params:set(voice.."freq_mod_lfo", util.linexp(0, 1, 0.0000001, 1, math.pow(math.random(), 2)))
+    params:set(voice.."freq_mod_env", util.linlin(0, 1, specs.FREQ_MOD_ENV.minval, specs.FREQ_MOD_ENV.maxval, math.pow(math.random(), 4)))
+    
+    params:set(voice.."glide", util.linexp(0, 1, 0.0000001, specs.GLIDE.maxval, math.pow(math.random(), 2)))
+    
+    params:set(voice.."main_osc_level", math.random())
+    params:set(voice.."sub_osc_level", math.random())
+    params:set(voice.."sub_osc_detune", util.linlin(0, 1, specs.SUB_OSC_DETUNE.minval, specs.SUB_OSC_DETUNE.maxval, math.random()))
+    params:set(voice.."noise_level", util.linlin(0, 1, 0.1, 1, math.random()))
+    
+    params:set(voice.."lp_filter_cutoff", util.linexp(0, 1, 100, 6000, math.random()))
+    if math.random() > 0.6 then
+      params:set(voice.."lp_filter_resonance", util.linlin(0, 1, 0.5, 1, math.random()))
+    else
+      params:set(voice.."lp_filter_resonance", math.random())
+    end
+    params:set(voice.."lp_filter_mod_env", util.linlin(0, 1, -0.3, 1, math.random()))
+    params:set(voice.."lp_filter_mod_lfo", math.random())
+    
+    params:set(voice.."env_1_attack", util.linlin(0, 1, specs.ENV_ATTACK.minval, specs.ENV_ATTACK.maxval, math.random()))
+    
+    params:set(voice.."env_2_attack", specs.ENV_ATTACK.minval)
+    params:set(voice.."env_2_decay", util.linlin(0, 1, 0.008, 1.8, math.pow(math.random(), 4)))
+    params:set(voice.."env_2_sustain", 0)
+    params:set(voice.."env_2_release", params:get(voice.."env_2_decay"))
+    
+    if params:get(voice.."env_2_decay") < 0.15 and params:get(voice.."env_1_attack") > 1 then
+      params:set(voice.."env_1_attack", params:get(voice.."env_2_decay"))
+    end
+    
+    local amp_max = 1
+    if math.random() > 0.7 then amp_max = 11 end
+    params:set(voice.."amp", util.linlin(0, 1, 0.75, amp_max, math.random()))
+    params:set(voice.."amp_mod", util.linlin(0, 1, 0, 0.2, math.random()))
+    
+    params:set(voice.."ring_mod_fade", util.linlin(0, 1, specs.RING_MOD_FADE.minval, 2, math.random()))
+    if(math.random() > 0.4) then
+      params:set(voice.."ring_mod_mix", math.random())
+    else
+      params:set(voice.."ring_mod_mix", 0)
+    end
+    
+  end
+  
+  if params:get(voice.."main_osc_level") < 0.6 and params:get(voice.."sub_osc_level") < 0.6 and params:get(voice.."noise_level") < 0.6 then
+    params:set(voice.."main_osc_level", util.linlin(0, 1, 0.6, 1, math.random()))
+  end
+  
+  if params:get(voice.."lp_filter_cutoff") > 12000 and math.random() > 0.7 then
+    params:set(voice.."hp_filter_cutoff", util.linexp(0, 1, specs.HP_FILTER_CUTOFF.minval, params:get(voice.."lp_filter_cutoff") * 0.05, math.random()))
+  else
+    params:set(voice.."hp_filter_cutoff", specs.HP_FILTER_CUTOFF.minval)
+  end
+  
+  if params:get(voice.."lp_filter_cutoff") < 600 and params:get(voice.."lp_filter_mod_env") < 0 then
+    params:set(voice.."lp_filter_mod_env", math.abs(params:get(voice.."lp_filter_mod_env")))
+  end
+  
 end
