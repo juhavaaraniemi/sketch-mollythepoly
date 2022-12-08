@@ -346,7 +346,7 @@ end
 --
 -- NOTE FUNCTIONS
 --
-function note_on(voice,note_num)
+function note_on(id,voice,note_num)
   if params:get("output") == 1 then
     engine.oscWaveShape(params:get(voice.."osc_wave_shape"))
     engine.pwMod(params:get(voice.."pulse_width_mod"))
@@ -383,9 +383,10 @@ function note_on(voice,note_num)
     engine.ringModFade(params:get(voice.."ring_mod_fade"))
     engine.ringModMix(params:get(voice.."ring_mod_mix"))
     engine.chorusMix(params:get(voice.."chorus_mix"))
-    engine.noteOn(note_num,musicutil.note_num_to_freq(note_num),80) --hardcoding velocity
+    print("note on: "..id)
+    engine.noteOn(id,musicutil.note_num_to_freq(note_num),80) --hardcoding velocity
   elseif params:get("output") == 2 then
-    m:note_on(note_num, vel)
+    m:note_on(id,note_num, vel)
   elseif params:get("output") == 3 then
     m:note_on(note_num, vel)
     mx:on(
@@ -397,9 +398,10 @@ function note_on(voice,note_num)
   end
 end
 
-function note_off(voice,note_num)
+function note_off(id,voice,note_num)
   if params:get("output") == 1 then
-    engine.noteOff(note_num)
+    print("note off: "..id)
+    engine.noteOff(id)
   elseif params:get("output") == 2 then
     m:note_off(note_num)
   elseif params:get("output") == 3 then
@@ -430,7 +432,7 @@ function clear_lit()
   for i,e in pairs(lit) do
     if e.id == nil and e.pattern == active_grid_pattern then
       print(e.voice.." "..midi_note[e.y][e.x].value)
-      note_off(e.voice,midi_note[e.y][e.x].value)
+      note_off(e.id,e.voice,midi_note[e.y][e.x].value)
       lit[i] = nil
     end
   end
@@ -470,7 +472,7 @@ end
 function grid_note(e)
   --local note = ((7-e.y)*5) + e.x
   if e.state > 0 then
-    note_on(e.voice,note[e.y][e.x].value)
+    note_on(e.id,e.voice,note[e.y][e.x].value)
     lit[e.id] = {}
     lit[e.id].voice = e.voice
     lit[e.id].pattern = e.pattern
@@ -478,7 +480,7 @@ function grid_note(e)
     lit[e.id].y = e.y
   else
     if lit[e.id] ~= nil then
-      note_off(e.voice,note[e.y][e.x].value)
+      note_off(e.id,e.voice,note[e.y][e.x].value)
       lit[e.id] = nil
     end
   end
@@ -530,7 +532,8 @@ function g.key(x,y,z)
   -- notes
   elseif x > 2 then
     local e = {}
-    e.id = selected_voice + x*8 + y
+    e.id = selected_voice..x..y
+    print(e.id)
     e.voice = selected_voice
     e.pattern = active_grid_pattern
     e.x = x
@@ -565,7 +568,7 @@ function pattern_rec_press(y)
     grid_pattern[y]:stop()
     grid_pattern[y]:rec_start()
   elseif grid_pattern[y].rec == 1 then
-    all_notes_off()
+    --all_notes_off()
     grid_pattern[y]:rec_stop()
     grid_pattern[y]:start()
   elseif grid_pattern[y].play == 1 and grid_pattern[y].overdub == 0 then
