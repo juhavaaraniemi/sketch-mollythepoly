@@ -37,6 +37,8 @@ for i = 1, #musicutil.SCALES do
 end
 lit = {}
 pat_timer = {}
+blink_counter = 0
+blink = false
 
 
 --
@@ -77,7 +79,7 @@ function init_parameters()
     options=scale_names,
     default=41,
     action=function()
-      build_scale()
+      build_scale(selected_voice)
     end
   }
   params:add{
@@ -91,7 +93,7 @@ function init_parameters()
       return musicutil.note_num_to_name(param:get(),true)
     end,
     action=function(value)
-      build_scale()
+      build_scale(selected_voice)
     end
   }
   params:add{
@@ -102,42 +104,28 @@ function init_parameters()
     max=12,
     default=5,
     action=function(value)
-      build_scale()
+      build_scale(selected_voice)
     end
   }
-  params:bang()
 end
 
 function init_voices()
-  params:add_group("SKETCH - VOICES",24)
+  params:add_group("SKETCH - VOICES",8)
   for i=1,8 do
-    params:add_separator("voice "..i)
     params:add{
       type="number",
-      id=i.."velocity",
-      name="velocity",
-      min=0,
-      max=127,
-      default=80,
+      id=i.."transpose",
+      name=i.."transpose",
+      min=-12,
+      max=12,
+      default=0,
       action=function(value)
-        print(i.."velocity "..value)
-      end
-    }
-    params:add{
-      type="number",
-      id=i.."root_note",
-      name="root note",
-      min=0,
-      max=127,
-      default=24,
-      formatter=function(param)
-        return musicutil.note_num_to_name(param:get(),true)
-      end,
-      action=function(value)
-        build_scale()
+        build_scale(selected_voice)
+        print(i.."transpose "..value)
       end
     }
   end
+  params:bang()
 end
    
 
@@ -231,9 +219,16 @@ end
 function grid_redraw_clock()
   while true do
     clock.sleep(1/30) -- refresh at 30fps.
-    if grid_dirty then
+--    if grid_dirty then
       grid_redraw()
-      grid_dirty = false
+--      grid_dirty = false
+--    end
+    
+    if blink_counter == 5 then
+      blink = not blink
+      blink_counter = 0
+    else
+      blink_counter = blink_counter + 1
     end
   end
 end
@@ -254,12 +249,12 @@ end
 --
 function note_on(id,voice,note_num)
   if params:get("output") == 1 then
-    engine.noteOn(id,musicutil.note_num_to_freq(note_num),params:get(voice.."velocity")) --hardcoding velocity
+    engine.noteOn(id,musicutil.note_num_to_freq(note_num),80)
   elseif params:get("output") == 2 then
     m:note_on(id,note_num, vel)
   elseif params:get("output") == 3 then
     m:note_on(note_num, vel)
-    engine.noteOn(id,musicutil.note_num_to_freq(note_num),80) --hardcoding velocity
+    engine.noteOn(id,musicutil.note_num_to_freq(note_num),80)
   end
 end
 
@@ -291,22 +286,22 @@ end
 
 function grid_note(e)
   if e.state == 1 then
-    note_on(e.id,e.voice,note[e.y][e.x].value)
+    note_on(e.id,e.voice,note[e.voice][e.y][e.x].value+e.trans-params:get(selected_voice.."transpose"))
     lit[e.id] = {}
     lit[e.id].voice = e.voice
     lit[e.id].pattern = e.pattern
-    lit[e.id].x = e.x
+    lit[e.id].x = e.x+e.trans-params:get(selected_voice.."transpose")
     lit[e.id].y = e.y
   elseif e.state == 0 then
     if lit[e.id] ~= nil then
-      note_off(e.id,e.voice,note[e.y][e.x].value)
+      note_off(e.id,e.voice,note[e.voice][e.y][e.x].value)
       lit[e.id] = nil
     end
   end
   grid_redraw()
 end
 
-function build_scale()
+function build_scale(voice)
   if params:get("scale") ~= 41 then
     note_nums = musicutil.generate_scale_of_length(params:get("root_note"),params:get("scale"),112)
   else
@@ -316,17 +311,18 @@ function build_scale()
     end
   end
 
-  row_start_note = params:get("root_note")
+  row_start_note = params:get("root_note") + params:get(voice.."transpose")
   note = {}
+  note[voice] = {}
   for row = 8,1,-1 do
     note_value = row_start_note
-    note[row] = {}
+    note[voice][row] = {}
     for col = 3,16 do
-      note[row][col] = {}
-      note[row][col].value = note_value
+      note[voice][row][col] = {}
+      note[voice][row][col].value = note_value
       for i=1,112 do
-        if note[row][col].value == note_nums[i] then
-          note[row][col].in_scale = true
+        if note[voice][row][col].value == note_nums[i] then
+          note[voice][row][col].in_scale = true
         end
       end
       note_value = note_value + 1
@@ -363,10 +359,15 @@ end
 function enc(n,d)
   if shifted and n == 3 then
     params:delta("scale",d)
+  elseif shifted and n == 2 then
+    params:delta(selected_voice.."transpose",d)
   elseif n == 1 then
-    active_grid_pattern = util.clamp(active_grid_pattern+d,1,8)
+    if not (grid_pattern[active_grid_pattern].rec == 1 or grid_pattern[active_grid_pattern].overdub == 1) then
+      active_grid_pattern = util.clamp(active_grid_pattern+d,1,8)
+    end
   elseif n == 2 then
     selected_voice = util.clamp(selected_voice+d,1,8)
+    build_scale(selected_voice)
   elseif n == 3 then
     params:delta("root_note",d)
   end
@@ -376,28 +377,37 @@ end
 function g.key(x,y,z)
   -- pattern recorders
   if x == 1 then
-    active_grid_pattern = y
+    if not (grid_pattern[active_grid_pattern].rec == 1 or grid_pattern[active_grid_pattern].overdub == 1) then
+      active_grid_pattern = y
+    end
     if z == 1 then
-      pattern_rec_press(y)
+      if y ~= active_grid_pattern then
+        pattern_stop_press(active_grid_pattern)
+        active_grid_pattern = y
+      end
+      pattern_rec_press(active_grid_pattern)
     end
   elseif x == 2 then
-    active_grid_pattern = y
+    if not (grid_pattern[active_grid_pattern].rec == 1 or grid_pattern[active_grid_pattern].overdub == 1) then
+      active_grid_pattern = y
+    end
     if z == 1 then
-      pat_timer[y] = clock.run(pattern_clear_press,y)
+      pat_timer[active_grid_pattern] = clock.run(pattern_clear_press,active_grid_pattern)
     elseif z == 0 then
-      if pat_timer[y] then
-        clock.cancel(pat_timer[y])
-        pattern_stop_press(y)
+      if pat_timer[active_grid_pattern] then
+        clock.cancel(pat_timer[active_grid_pattern])
+        pattern_stop_press(active_grid_pattern)
       end
     end
 
   -- notes
   elseif x > 2 then
     local e = {}
-    e.id = selected_voice..x..y
+    e.id = params:get(selected_voice.."transpose")..selected_voice..x..y
     --print(e.id)
     e.voice = selected_voice
     e.pattern = active_grid_pattern
+    e.trans = params:get(selected_voice.."transpose")
     e.x = x
     e.y = y
     e.state = z
@@ -407,38 +417,43 @@ function g.key(x,y,z)
   grid_dirty = true
 end
 
-function pattern_clear_press(y)
+function pattern_clear_press(pattern)
   clock.sleep(0.5)
-  grid_pattern[y]:stop()
+  grid_pattern[pattern]:stop()
   clear_pattern_notes()
-  grid_pattern[y]:clear()
-  pat_timer[y] = nil
+  grid_pattern[pattern]:clear()
+  pat_timer[pattern] = nil
   grid_dirty = true
   screen_dirty = true
 end
 
-function pattern_stop_press(y)
-  grid_pattern[y]:rec_stop()
-  grid_pattern[y]:stop()
+function pattern_stop_press(pattern)
+  grid_pattern[pattern]:rec_stop()
+  grid_pattern[pattern]:stop()
   clear_pattern_notes()
   grid_dirty = true
   screen_dirty = true
 end
 
-function pattern_rec_press(y)
-  if grid_pattern[y].rec == 0 and grid_pattern[y].count == 0 then
-    grid_pattern[y]:stop()
-    grid_pattern[y]:rec_start()
-  elseif grid_pattern[y].rec == 1 then
-    grid_pattern[y]:rec_stop()
+function pattern_rec_press(pattern)
+  if grid_pattern[pattern].rec == 0 and grid_pattern[pattern].count == 0 then
+    grid_pattern[pattern]:stop()
+    grid_pattern[pattern]:rec_start()
+  elseif grid_pattern[pattern].rec == 1 then
+    grid_pattern[pattern]:rec_stop()
     clear_pattern_notes()
-    grid_pattern[y]:start()
-  elseif grid_pattern[y].play == 1 and grid_pattern[y].overdub == 0 then
-    grid_pattern[y]:set_overdub(1)
-  elseif grid_pattern[y].play == 1 and grid_pattern[y].overdub == 1 then
-    grid_pattern[y]:set_overdub(0)
-  elseif grid_pattern[y].play == 0 and grid_pattern[y].count > 0 then
-    grid_pattern[y]:start()
+    grid_pattern[pattern]:start()
+  elseif grid_pattern[pattern].play == 1 and grid_pattern[pattern].overdub == 0 then
+    grid_pattern[pattern]:set_overdub(1)
+  elseif grid_pattern[pattern].play == 1 and grid_pattern[pattern].overdub == 1 then
+    grid_pattern[pattern]:set_overdub(0)
+  elseif grid_pattern[pattern].play == 0 and grid_pattern[pattern].count > 0 then
+    --for i=1,8 do
+    --  if i ~= pattern then
+    --    grid_pattern[i]:stop()
+    --  end
+    --end
+    grid_pattern[pattern]:start()
   end
   grid_dirty = true
   screen_dirty = true
@@ -559,20 +574,20 @@ function grid_redraw()
   for y= 1,8 do
     for x= 1,2 do
       if x == 1 then
-        if grid_pattern[y].play == 1 and grid_pattern[y].overdub == 1 then
+        if grid_pattern[y].play == 1 and grid_pattern[y].overdub == 1 and blink then
           g:led(x,y,15)
         elseif grid_pattern[y].play == 1 and grid_pattern[y].overdub == 0 then
-          g:led(x,y,8)
-        elseif grid_pattern[y].rec == 1 then
+          g:led(x,y,15)
+        elseif grid_pattern[y].rec == 1 and blink then
           g:led(x,y,15)
         else
-          g:led(x,y,4)
+          g:led(x,y,2)
         end
       elseif x == 2 then
         if grid_pattern[y].count > 0 then
           g:led(x,y,15)
         else
-          g:led(x,y,4)
+          g:led(x,y,2)
         end
       end
     end
@@ -581,15 +596,16 @@ function grid_redraw()
   for x = 3,16 do
     for y = 8,1,-1 do
       -- scale notes
-      if note[y][x].in_scale == true then
+      if note[selected_voice][y][x].in_scale == true then
         g:led(x,y,4)
       end
       -- root notes
-      if (note[y][x].value - params:get("root_note")) % 12 == 0 then
+      if (note[selected_voice][y][x].value - params:get("root_note")) % 12 == 0 then
         g:led(x,y,8)
       end
     end
   end
+  
   -- lit when pressed
   for i,e in pairs(lit) do
     if e.voice == selected_voice then
