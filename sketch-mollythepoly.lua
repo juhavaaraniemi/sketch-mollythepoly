@@ -572,7 +572,11 @@ function grid_redraw()
   
   -- lit when pressed
   for i,e in pairs(lit) do
-    g:led(e.x, e.y,15)
+    if e.x > 2 and e.x < 17 then
+      if e.y > 0 and e.y < 9 then
+        g:led(e.x, e.y,15)
+      end
+    end
   end
   g:refresh()
 end
