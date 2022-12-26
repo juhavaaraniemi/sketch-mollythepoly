@@ -1,12 +1,15 @@
 -- sketch
--- v 0.1
+-- v 0.5
 --
 -- isomorphic keyboard 
 -- and pattern recorder 
 -- for sketching
 --
--- e1     scale
--- k1+e1  root note
+-- speaks molly the poly
+--
+-- e1   scale
+-- e2   root note
+-- e3   transpose grid
 
 
 --
@@ -46,7 +49,7 @@ blink = false
 --
 function init_parameters()
   params:add_separator("SKETCH")
-  params:add_group("SKETCH - ROUTING",3)
+  params:add_group("SKETCH - ROUTING",2)
   params:add{
     type="option",
     id="output",
@@ -62,15 +65,7 @@ function init_parameters()
     max=16,
     default=1
   }
-  params:add{
-    type="number",
-    id="cc_channel",
-    name="midi cc channel",
-    min=1,
-    max=16,
-    default=2
-  }
-  params:add_group("SKETCH - KEYBOARD",3)
+  params:add_group("SKETCH - KEYBOARD",4)
   params:add{
     type="option",
     id="scale",
@@ -98,13 +93,12 @@ function init_parameters()
   params:add{
     type="number",
     id="xtranspose",
-    name="x transpose",
+    name="transpose x",
     min=-12,
     max=12,
     default=0,
     action=function(value)
       build_scale(selected_voice)
-      print("xtranspose "..value)
     end
   }
   params:add{
@@ -260,8 +254,8 @@ function note_off(id,note_num)
   end
 end
 
-function clear_pattern_notes()
-  for i,e in pairs(grid_pattern[active_grid_pattern].event) do
+function clear_pattern_notes(pattern)
+  for i,e in pairs(grid_pattern[pattern].event) do
     if e.state == 1 then
       local n = {}
       n.id = e.id
@@ -384,7 +378,7 @@ end
 function pattern_clear_press(pattern)
   clock.sleep(0.5)
   grid_pattern[pattern]:stop()
-  clear_pattern_notes()
+  clear_pattern_notes(pattern)
   grid_pattern[pattern]:clear()
   pat_timer[pattern] = nil
   grid_dirty = true
@@ -394,7 +388,7 @@ end
 function pattern_stop_press(pattern)
   grid_pattern[pattern]:rec_stop()
   grid_pattern[pattern]:stop()
-  clear_pattern_notes()
+  clear_pattern_notes(pattern)
   grid_dirty = true
   screen_dirty = true
 end
@@ -405,7 +399,7 @@ function pattern_rec_press(pattern)
     grid_pattern[pattern]:rec_start()
   elseif grid_pattern[pattern].rec == 1 then
     grid_pattern[pattern]:rec_stop()
-    clear_pattern_notes()
+    clear_pattern_notes(pattern)
     grid_pattern[pattern]:start()
   elseif grid_pattern[pattern].play == 1 and grid_pattern[pattern].overdub == 0 then
     grid_pattern[pattern]:set_overdub(1)
@@ -428,104 +422,13 @@ end
 -- REDRAW FUNCTIONS
 --
 
-function draw_rec(x,y)
-  screen.aa(1)
-  screen.circle(x+3,y,3)
-  screen.fill()
-  screen.aa(0)
-end
-
-function draw_ovr(x,y)
-  screen.aa(1)
-  screen.circle(x+3,y,3)
-  screen.fill()
-  screen.move(x+1,y+2)
-  screen.level(1)
-  screen.text("o")
-  screen.aa(0)
-  screen.level(15)
-end
-
-function draw_stop(x,y)
-  screen.aa(1)
-  screen.rect(x,y-3,6,6)
-  screen.fill()
-  screen.aa(0)
-end
-
-function draw_play(x,y)
-  screen.aa(1)
-  screen.move(x,y-3)
-  screen.line_rel(6,3)
-  screen.line_rel(-6,3)
-  screen.line_rel(0,-6)
-  screen.fill()
-  screen.aa(0)
-end
-
-function draw_empty(x,y)
-  screen.aa(1)
-  screen.level(15)
-  screen.rect(x,y-3,6,6)
-  screen.fill()
-  screen.level(1)
-  screen.rect(x+1,y-2,4,4)
-  screen.fill()
-  screen.level(15)
-  screen.aa(0)
-end
-
-function draw_state(state,x,y)
-  if state == "rec" then
-    draw_rec(x,y)
-  elseif state == "ovr" then
-    draw_ovr(x,y)
-  elseif state == "play" then
-    draw_play(x,y)
-  elseif state == "stop" then
-    draw_stop(x,y)
-  elseif state == "empty" then
-    draw_empty(x,y)
-  end
-end
-
 function redraw()
-  
-  pattern_status = {}
-  for i=1,8 do
-    if grid_pattern[i].rec == 0 and grid_pattern[i].count == 0 then
-      pattern_status[i] = "empty"
-    elseif grid_pattern[i].rec == 1 then
-      pattern_status[i] = "rec"
-    elseif grid_pattern[i].play == 1 and grid_pattern[i].overdub == 1 then
-      pattern_status[i] = "ovr"
-    elseif grid_pattern[i].play == 1 and grid_pattern[i].overdub == 0 then
-      pattern_status[i] = "play"
-    elseif grid_pattern[i].play == 0 then
-      pattern_status[i] = "stop"
-    end
-  end
-  
   screen.clear()
   screen.level(15)
-  
-  -- pattern status
-  for i=1,8 do
-    draw_state(pattern_status[i],i*14-1,18)
-    screen.move(i*14,10)
-    screen.text(i)
-  end
-  screen.close()
-  
-  -- pattern select
-  screen.move(active_grid_pattern*14,13)
-  screen.line_rel(4,0)
-  screen.stroke()
-
-  --screen.move(0,39)
-  --screen.text("active pattern: "..active_grid_pattern)  
+  screen.move(0,39)
+  screen.text("output: "..params:string("output"))
   screen.move(0,46)
-  screen.text("x transpose: "..params:get("xtranspose"))
+  screen.text("transpose x: "..params:get("xtranspose"))
   screen.move(0,53)
   screen.text("root note: "..musicutil.note_num_to_name(params:get("root_note"), true))
   screen.move(0,60)
