@@ -81,10 +81,10 @@ function init_parameters()
     id="root_note",
     name="root note",
     min=0,
-    max=127,
-    default=24,
+    max=11,
+    default=0,
     formatter=function(param)
-      return musicutil.note_num_to_name(param:get(),true)
+      return musicutil.note_num_to_name(param:get(),false)
     end,
     action=function(value)
       build_scale()
@@ -94,11 +94,11 @@ function init_parameters()
     type="number",
     id="xtranspose",
     name="transpose x",
-    min=-12,
-    max=12,
-    default=0,
+    min=0,
+    max=127,
+    default=24,
     action=function(value)
-      build_scale(selected_voice)
+      build_scale()
     end
   }
   params:add{
@@ -285,12 +285,17 @@ function grid_note(e)
   grid_redraw()
 end
 
+function get_note_num()
+  
+end
+
+
 function build_scale()
   if params:get("scale") ~= 41 then
-    note_nums = musicutil.generate_scale_of_length(params:get("root_note")-12,params:get("scale"),124)
+    note_nums = musicutil.generate_scale_of_length(params:get("root_note"),params:get("scale"),120)
   else
     note_nums = {}
-    for i=1,112 do
+    for i=1,120 do
       note_nums[i] = nil
     end
   end
@@ -430,7 +435,7 @@ function redraw()
   screen.move(0,46)
   screen.text("transpose x: "..params:get("xtranspose"))
   screen.move(0,53)
-  screen.text("root note: "..musicutil.note_num_to_name(params:get("root_note"), true))
+  screen.text("root note: "..musicutil.note_num_to_name(params:get("root_note"), false))
   screen.move(0,60)
   screen.text("scale: "..scale_names[params:get("scale")])
   screen.update()
