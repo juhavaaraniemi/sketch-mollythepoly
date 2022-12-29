@@ -95,7 +95,7 @@ function init_parameters()
     id="xtranspose",
     name="transpose x",
     min=0,
-    max=127,
+    max=68,
     default=24,
     action=function(value)
       build_scale()
@@ -259,10 +259,7 @@ function clear_pattern_notes(pattern)
     if e.state == 1 then
       local n = {}
       n.id = e.id
-      n.voice = e.voice
-      n.pattern = e.pattern
-      n.x = e.x
-      n.y = e.y
+      n.note = e.note
       n.state = 0
       grid_note(n)
     end
@@ -271,51 +268,38 @@ end
 
 function grid_note(e)
   if e.state == 1 then
-    note_on(e.id,note[e.y][e.x].value+e.trans-params:get("xtranspose"))
+    note_on(e.id,e.note+params:get("root_note"))
+    print(e.note+params:get("root_note"))
     lit[e.id] = {}
     lit[e.id].pattern = e.pattern
     lit[e.id].x = e.x+e.trans-params:get("xtranspose")
     lit[e.id].y = e.y
   elseif e.state == 0 then
     if lit[e.id] ~= nil then
-      note_off(e.id,note[e.y][e.x].value)
+      note_off(e.id,e.note+params:get("root_note"))
       lit[e.id] = nil
     end
   end
   grid_redraw()
 end
 
-function get_note_num()
-  
+function get_note(x,y)
+  return util.clamp((8-y)*params:get("row_interval")+(x-3)+params:get("xtranspose"),0,120)
+end
+
+function note_in_scale(note)
+  return in_scale[note] ~= nil
 end
 
 
 function build_scale()
-  if params:get("scale") ~= 41 then
-    note_nums = musicutil.generate_scale_of_length(params:get("root_note"),params:get("scale"),120)
-  else
-    note_nums = {}
-    for i=1,120 do
-      note_nums[i] = nil
-    end
+  note_nums = {}
+  if params:get("scale") < 41 then
+    note_nums = musicutil.generate_scale_of_length(0,params:get("scale"),120)
   end
-
-  row_start_note = params:get("root_note") + params:get("xtranspose")
-  note = {}
-  for row = 8,1,-1 do
-    note_value = row_start_note
-    note[row] = {}
-    for col = 3,16 do
-      note[row][col] = {}
-      note[row][col].value = note_value
-      for i=1,112 do
-        if note[row][col].value == note_nums[i] then
-          note[row][col].in_scale = true
-        end
-      end
-      note_value = note_value + 1
-    end
-    row_start_note = row_start_note + params:get("row_interval")
+  in_scale = {}
+  for _,v in pairs(note_nums) do
+    in_scale[v] = true
   end
   grid_dirty = true
 end
@@ -325,6 +309,13 @@ end
 -- UI FUNCTIONS
 --
 function key(n,z)
+  if z == 1 then
+    if n == 2 then
+      print(get_note(3,8))
+    elseif n == 3 then
+      print(note_in_scale(24))
+    end
+  end
 end
 
 function enc(n,d)
@@ -370,6 +361,7 @@ function g.key(x,y,z)
     e.id = params:get("xtranspose")..x..y
     --print(e.id)
     e.pattern = active_grid_pattern
+    e.note = get_note(x,y)
     e.trans = params:get("xtranspose")
     e.x = x
     e.y = y
@@ -468,11 +460,11 @@ function grid_redraw()
   for x = 3,16 do
     for y = 8,1,-1 do
       -- scale notes
-      if note[y][x].in_scale == true then
+      if note_in_scale(get_note(x,y)) then
         g:led(x,y,4)
       end
       -- root notes
-      if (note[y][x].value - params:get("root_note")) % 12 == 0 then
+      if (get_note(x,y)) % 12 == 0 then
         g:led(x,y,8)
       end
     end
