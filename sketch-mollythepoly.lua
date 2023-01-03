@@ -65,7 +65,7 @@ function init_parameters()
     max=16,
     default=1
   }
-  params:add_group("SKETCH - KEYBOARD",4)
+  params:add_group("SKETCH - KEYBOARD",5)
   params:add{
     type="option",
     id="scale",
@@ -97,6 +97,17 @@ function init_parameters()
     min=0,
     max=68,
     default=24,
+    action=function(value)
+      build_scale()
+    end
+  }
+  params:add{
+    type="number",
+    id="ytranspose",
+    name="transpose y",
+    min=0,
+    max=13,
+    default=5,
     action=function(value)
       build_scale()
     end
@@ -272,8 +283,8 @@ function grid_note(e)
     print(e.note+params:get("root_note"))
     lit[e.id] = {}
     lit[e.id].pattern = e.pattern
-    lit[e.id].x = e.x+e.trans-params:get("xtranspose")
-    lit[e.id].y = e.y
+    lit[e.id].x = e.x --+e.trans-params:get("xtranspose")
+    lit[e.id].y = e.y-e.trans+params:get("ytranspose")
   elseif e.state == 0 then
     if lit[e.id] ~= nil then
       note_off(e.id,e.note+params:get("root_note"))
@@ -284,7 +295,8 @@ function grid_note(e)
 end
 
 function get_note(x,y)
-  return util.clamp((8-y)*params:get("row_interval")+(x-3)+params:get("xtranspose"),0,120)
+  --return util.clamp((8-y)*params:get("row_interval")+(x-3)+params:get("xtranspose"),0,120)
+  return util.clamp((8-y)*params:get("row_interval")+params:get("ytranspose")*params:get("row_interval")+(x-3),0,120)
 end
 
 function note_in_scale(note)
@@ -309,13 +321,6 @@ end
 -- UI FUNCTIONS
 --
 function key(n,z)
-  if z == 1 then
-    if n == 2 then
-      print(get_note(3,8))
-    elseif n == 3 then
-      print(note_in_scale(24))
-    end
-  end
 end
 
 function enc(n,d)
@@ -324,7 +329,7 @@ function enc(n,d)
   elseif n == 2 then
     params:delta("root_note",d)
   elseif n == 3 then
-    params:delta("xtranspose",d)
+    params:delta("ytranspose",d)
   end
   screen_dirty = true
 end
@@ -358,11 +363,11 @@ function g.key(x,y,z)
   -- notes
   elseif x > 2 then
     local e = {}
-    e.id = params:get("xtranspose")..x..y
+    e.id = get_note(x,y)..x..y
     --print(e.id)
     e.pattern = active_grid_pattern
     e.note = get_note(x,y)
-    e.trans = params:get("xtranspose")
+    e.trans = params:get("ytranspose")
     e.x = x
     e.y = y
     e.state = z
@@ -425,7 +430,7 @@ function redraw()
   screen.move(0,39)
   screen.text("output: "..params:string("output"))
   screen.move(0,46)
-  screen.text("transpose x: "..params:get("xtranspose"))
+  screen.text("transpose y: "..params:get("ytranspose"))
   screen.move(0,53)
   screen.text("root note: "..musicutil.note_num_to_name(params:get("root_note"), false))
   screen.move(0,60)
