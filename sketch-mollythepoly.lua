@@ -40,6 +40,7 @@ for i = 1, #musicutil.SCALES do
 end
 lit = {}
 pat_timer = {}
+undo_timer = {}
 blink_counter = 0
 blink = false
 
@@ -65,7 +66,7 @@ function init_parameters()
     max=16,
     default=1
   }
-  params:add_group("SKETCH - KEYBOARD",5)
+  params:add_group("SKETCH - KEYBOARD",4)
   params:add{
     type="option",
     id="scale",
@@ -85,20 +86,6 @@ function init_parameters()
     default=0,
     formatter=function(param)
       return musicutil.note_num_to_name(param:get(),false)
-    end,
-    action=function(value)
-      build_scale()
-    end
-  }
-  params:add{
-    type="number",
-    id="xtranspose",
-    name="transpose x",
-    min=0,
-    max=68,
-    default=24,
-    action=function(value)
-      build_scale()
     end
   }
   params:add{
@@ -107,10 +94,7 @@ function init_parameters()
     name="transpose y",
     min=0,
     max=13,
-    default=5,
-    action=function(value)
-      build_scale()
-    end
+    default=5
   }
   params:add{
     type="number",
@@ -118,10 +102,7 @@ function init_parameters()
     name="row interval",
     min=1,
     max=12,
-    default=5,
-    action=function(value)
-      build_scale()
-    end
+    default=5
   }
   params:bang()
 end
@@ -295,7 +276,6 @@ function grid_note(e)
 end
 
 function get_note(x,y)
-  --return util.clamp((8-y)*params:get("row_interval")+(x-3)+params:get("xtranspose"),0,120)
   return util.clamp((8-y)*params:get("row_interval")+params:get("ytranspose")*params:get("row_interval")+(x-3),0,120)
 end
 
@@ -337,7 +317,7 @@ end
 function g.key(x,y,z)
   -- pattern recorders
   if x == 1 then
-    if not (grid_pattern[active_grid_pattern].rec == 1 or grid_pattern[active_grid_pattern].overdub == 1) then
+     if not (grid_pattern[active_grid_pattern].rec == 1 or grid_pattern[active_grid_pattern].overdub == 1) then
       active_grid_pattern = y
     end
     if z == 1 then
@@ -418,7 +398,6 @@ function pattern_rec_press(pattern)
   grid_dirty = true
   screen_dirty = true
 end
-
 
 --
 -- REDRAW FUNCTIONS
